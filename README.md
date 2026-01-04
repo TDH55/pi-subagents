@@ -1,15 +1,12 @@
 # Subagent Enhanced
 
-Experimental subagent tool with output truncation, progress tracking, and debug artifacts.
+Fork of the [async-subagent example](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/custom-tools/async-subagent) with output truncation and debug artifacts.
 
-Forked from the [async-subagent example](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/custom-tools/async-subagent) in pi-mono.
-
-## Features
+## Features (beyond base)
 
 - **Output Truncation**: Configurable byte/line limits via `maxOutput`
-- **Progress Tracking**: Real-time tool/token/duration metrics (sync mode)
 - **Debug Artifacts**: Input/output/JSONL/metadata files per task
-- **Session-tied Artifacts**: Uses session dir when available (sync), temp dir for async
+- **Session-tied Artifacts**: Sync mode uses session dir, async uses temp dir
 - **Session-scoped Notifications**: Async completions only notify the originating session
 
 ## Modes
