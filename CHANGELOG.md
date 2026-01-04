@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Parallel mode auto-downgrades to sync when async:true is passed (with note in output)
+- TUI now shows "parallel (no live progress)" label to set expectations
+
+### Fixed
+- Chain mode now sums step durations instead of taking max (was showing incorrect total time)
+- Async notifications no longer leak across pi sessions in different directories
+
 ## [0.1.0] - 2026-01-03
 
 Initial release forked from async-subagent example.

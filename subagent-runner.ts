@@ -164,6 +164,7 @@ function runSubagent(config: SubagentRunConfig): void {
 			durationMs: Date.now() - overallStartTime,
 			truncated,
 			artifactsDir,
+			cwd,
 			...(taskIndex !== undefined && { taskIndex }),
 			...(totalTasks !== undefined && { totalTasks }),
 		}),

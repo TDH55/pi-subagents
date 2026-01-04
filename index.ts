@@ -561,9 +561,6 @@ const Params = Type.Object({
 
 const factory: CustomToolFactory = (pi) => {
 	fs.mkdirSync(RESULTS_DIR, { recursive: true });
-	for (const f of fs.readdirSync(RESULTS_DIR).filter((f) => f.endsWith(".json"))) {
-		fs.unlinkSync(path.join(RESULTS_DIR, f));
-	}
 
 	const tempArtifactsDir = getArtifactsDir(null);
 	cleanupOldArtifacts(tempArtifactsDir, DEFAULT_ARTIFACT_CONFIG.cleanupDays);
@@ -573,9 +570,10 @@ const factory: CustomToolFactory = (pi) => {
 		if (!fs.existsSync(p)) return;
 		try {
 			const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+			if (data.cwd && data.cwd !== pi.cwd) return;
 			pi.events.emit("subagent_enhanced:complete", data);
+			fs.unlinkSync(p);
 		} catch {}
-		fs.unlinkSync(p);
 	};
 
 	const watcher = fs.watch(RESULTS_DIR, (ev, file) => {
@@ -598,8 +596,15 @@ const factory: CustomToolFactory = (pi) => {
 		async execute(_id, params, onUpdate, ctx, signal) {
 			const scope: AgentScope = params.agentScope ?? "user";
 			const agents = discoverAgents(pi.cwd, scope).agents;
-			const isAsync = params.async !== false;
 			const runId = randomUUID().slice(0, 8);
+
+			const hasChain = (params.chain?.length ?? 0) > 0;
+			const hasTasks = (params.tasks?.length ?? 0) > 0;
+			const hasSingle = Boolean(params.agent && params.task);
+
+			const requestedAsync = params.async !== false;
+			const parallelDowngraded = hasTasks && requestedAsync;
+			const isAsync = requestedAsync && !hasTasks;
 
 			const artifactConfig: ArtifactConfig = {
 				...DEFAULT_ARTIFACT_CONFIG,
@@ -608,10 +613,6 @@ const factory: CustomToolFactory = (pi) => {
 
 			const sessionFile = ctx?.sessionManager.getSessionFile() ?? null;
 			const artifactsDir = isAsync ? tempArtifactsDir : getArtifactsDir(sessionFile);
-
-			const hasChain = (params.chain?.length ?? 0) > 0;
-			const hasTasks = (params.tasks?.length ?? 0) > 0;
-			const hasSingle = Boolean(params.agent && params.task);
 
 			if (Number(hasChain) + Number(hasTasks) + Number(hasSingle) !== 1) {
 				return {
@@ -646,53 +647,6 @@ const factory: CustomToolFactory = (pi) => {
 					});
 					proc.unref();
 				};
-
-				if (hasTasks && params.tasks) {
-					if (params.tasks.length > MAX_PARALLEL)
-						return {
-							content: [{ type: "text", text: `Max ${MAX_PARALLEL} tasks` }],
-							isError: true,
-							details: { mode: "single" as const, results: [] },
-						};
-					for (let i = 0; i < params.tasks.length; i++) {
-						const t = params.tasks[i];
-						const a = agents.find((x) => x.name === t.agent);
-						if (!a)
-							return {
-								content: [{ type: "text", text: `Unknown: ${t.agent}` }],
-								isError: true,
-								details: { mode: "single" as const, results: [] },
-							};
-						spawnRunner(
-							{
-								id,
-								steps: [
-									{
-										agent: t.agent,
-										task: t.task,
-										cwd: t.cwd,
-										model: a.model,
-										tools: a.tools,
-										systemPrompt: a.systemPrompt?.trim() || null,
-									},
-								],
-								resultPath: path.join(RESULTS_DIR, `${id}-${i}.json`),
-								cwd: t.cwd ?? params.cwd ?? pi.cwd,
-								placeholder: "{previous}",
-								taskIndex: i,
-								totalTasks: params.tasks.length,
-								maxOutput: params.maxOutput,
-								artifactsDir: artifactConfig.enabled ? artifactsDir : undefined,
-								artifactConfig,
-							},
-							`${id}-${i}`,
-						);
-					}
-					return {
-						content: [{ type: "text", text: `Async parallel: ${params.tasks.length} tasks [${id}]` }],
-						details: { mode: "parallel", results: [], asyncId: id },
-					};
-				}
 
 				if (hasChain && params.chain) {
 					const steps = params.chain.map((s) => {
@@ -859,8 +813,9 @@ const factory: CustomToolFactory = (pi) => {
 				}
 
 				const ok = results.filter((r) => r.exitCode === 0).length;
+				const downgradeNote = parallelDowngraded ? " (async not supported for parallel)" : "";
 				return {
-					content: [{ type: "text", text: `${ok}/${results.length} succeeded` }],
+					content: [{ type: "text", text: `${ok}/${results.length} succeeded${downgradeNote}` }],
 					details: {
 						mode: "parallel",
 						results,
@@ -918,16 +873,17 @@ const factory: CustomToolFactory = (pi) => {
 		},
 
 		renderCall(args, theme) {
-			const asyncLabel = args.async !== false ? theme.fg("warning", " [async]") : "";
+			const isParallel = (args.tasks?.length ?? 0) > 0;
+			const asyncLabel = args.async !== false && !isParallel ? theme.fg("warning", " [async]") : "";
 			if (args.chain?.length)
 				return new Text(
 					`${theme.fg("toolTitle", theme.bold("async_subagent "))}chain (${args.chain.length})${asyncLabel}`,
 					0,
 					0,
 				);
-			if (args.tasks?.length)
+			if (isParallel)
 				return new Text(
-					`${theme.fg("toolTitle", theme.bold("async_subagent "))}parallel (${args.tasks.length})${asyncLabel}`,
+					`${theme.fg("toolTitle", theme.bold("async_subagent "))}parallel (${args.tasks!.length})`,
 					0,
 					0,
 				);
@@ -1003,7 +959,10 @@ const factory: CustomToolFactory = (pi) => {
 						if (r.progressSummary) {
 							acc.toolCount += r.progressSummary.toolCount;
 							acc.tokens += r.progressSummary.tokens;
-							acc.durationMs = Math.max(acc.durationMs, r.progressSummary.durationMs);
+							acc.durationMs =
+								d.mode === "chain"
+									? acc.durationMs + r.progressSummary.durationMs
+									: Math.max(acc.durationMs, r.progressSummary.durationMs);
 						}
 						return acc;
 					},
@@ -1015,11 +974,13 @@ const factory: CustomToolFactory = (pi) => {
 					? ` | ${totalSummary.toolCount} tools, ${formatTokens(totalSummary.tokens)} tokens, ${formatDuration(totalSummary.durationMs)}`
 					: "";
 
+			const modeLabel = d.mode === "parallel" ? "parallel (no live progress)" : d.mode;
+
 			if (expanded) {
 				const c = new Container();
 				c.addChild(
 					new Text(
-						`${icon} ${theme.fg("toolTitle", theme.bold(d.mode))} ${ok}/${d.results.length}${summaryStr}`,
+						`${icon} ${theme.fg("toolTitle", theme.bold(modeLabel))} ${ok}/${d.results.length}${summaryStr}`,
 						0,
 						0,
 					),
@@ -1044,7 +1005,7 @@ const factory: CustomToolFactory = (pi) => {
 			}
 
 			return new Text(
-				`${icon} ${theme.fg("toolTitle", theme.bold(d.mode))} ${ok}/${d.results.length}${summaryStr}`,
+				`${icon} ${theme.fg("toolTitle", theme.bold(modeLabel))} ${ok}/${d.results.length}${summaryStr}`,
 				0,
 				0,
 			);
