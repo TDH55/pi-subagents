@@ -1,12 +1,15 @@
 /**
- * Async Subagent Tool
+ * Subagent Tool
  *
  * Full-featured subagent with sync and async modes.
- * - Sync: Streams output, renders markdown, tracks usage
+ * - Sync (default): Streams output, renders markdown, tracks usage
  * - Async: Background execution, emits events when done
  *
  * Modes: single (agent + task), parallel (tasks[]), chain (chain[] with {previous})
- * Toggle: async parameter (default: true)
+ * Toggle: async parameter (default: false, configurable via config.json)
+ *
+ * Config file: ~/.pi/agent/extensions/subagent/config.json
+ *   { "asyncByDefault": true }
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -803,7 +806,7 @@ const Params = Type.Object({
 	task: Type.Optional(Type.String({ description: "Task (single mode)" })),
 	tasks: Type.Optional(Type.Array(TaskItem, { description: "Parallel tasks" })),
 	chain: Type.Optional(Type.Array(ChainItem, { description: "Sequential chain" })),
-	async: Type.Optional(Type.Boolean({ description: "Run in background (default: true)", default: true })),
+	async: Type.Optional(Type.Boolean({ description: "Run in background (default: false, or per config)" })),
 	agentScope: Type.Optional(StringEnum(["user", "project", "both"] as const, { default: "user" })),
 	cwd: Type.Optional(Type.String()),
 	maxOutput: MaxOutputSchema,
@@ -820,9 +823,26 @@ const StatusParams = Type.Object({
 	dir: Type.Optional(Type.String({ description: "Async run directory (overrides id search)" })),
 });
 
+interface ExtensionConfig {
+	asyncByDefault?: boolean;
+}
+
+function loadConfig(): ExtensionConfig {
+	const configPath = path.join(os.homedir(), ".pi", "agent", "extensions", "subagent", "config.json");
+	try {
+		if (fs.existsSync(configPath)) {
+			return JSON.parse(fs.readFileSync(configPath, "utf-8")) as ExtensionConfig;
+		}
+	} catch {}
+	return {};
+}
+
 export default function registerSubagentExtension(pi: ExtensionAPI): void {
 	fs.mkdirSync(RESULTS_DIR, { recursive: true });
 	fs.mkdirSync(ASYNC_DIR, { recursive: true });
+
+	const config = loadConfig();
+	const asyncByDefault = config.asyncByDefault === true;
 
 	const tempArtifactsDir = getArtifactsDir(null);
 	cleanupOldArtifacts(tempArtifactsDir, DEFAULT_ARTIFACT_CONFIG.cleanupDays);
@@ -921,7 +941,7 @@ export default function registerSubagentExtension(pi: ExtensionAPI): void {
 			const hasTasks = (params.tasks?.length ?? 0) > 0;
 			const hasSingle = Boolean(params.agent && params.task);
 
-			const requestedAsync = params.async !== false;
+			const requestedAsync = params.async ?? asyncByDefault;
 			const parallelDowngraded = hasTasks && requestedAsync;
 			const isAsync = requestedAsync && !hasTasks;
 
@@ -1250,7 +1270,7 @@ export default function registerSubagentExtension(pi: ExtensionAPI): void {
 
 		renderCall(args, theme) {
 			const isParallel = (args.tasks?.length ?? 0) > 0;
-			const asyncLabel = args.async !== false && !isParallel ? theme.fg("warning", " [async]") : "";
+			const asyncLabel = args.async === true && !isParallel ? theme.fg("warning", " [async]") : "";
 			if (args.chain?.length)
 				return new Text(
 					`${theme.fg("toolTitle", theme.bold("subagent "))}chain (${args.chain.length})${asyncLabel}`,
