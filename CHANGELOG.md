@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.2] - 2026-01-25
+
+### Performance
+- **4x faster polling** - Reduced poll interval from 1000ms to 250ms (efficient with mtime caching)
+- **Mtime-based caching** - status.json and output tail reads cached to avoid redundant I/O
+- **Unified throttled updates** - All onUpdate calls consolidated under 50ms throttle
+- **Widget change detection** - Hash-based change detection skips no-op re-renders
+- **Array optimizations** - Use concat instead of spread for chain progress updates
+
+### Fixed
+- **Timer leaks** - Track and clear pendingTimer and cleanupTimers properly
+- **Updates after close** - processClosed flag prevents updates after process terminates  
+- **Session cleanup** - Clear cleanup timers on session_start/switch/branch/shutdown
+
 ## [0.3.1] - 2026-01-24
 
 ### Changed
