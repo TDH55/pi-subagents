@@ -73,6 +73,7 @@ export default function registerSubagentExtension(pi: ExtensionAPI): void {
 	let baseCwd = process.cwd();
 	let currentSessionId: string | null = null;
 	const asyncJobs = new Map<string, AsyncJobState>();
+	const cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>(); // Track cleanup timeouts
 	let lastUiContext: ExtensionContext | null = null;
 	let poller: NodeJS.Timeout | null = null;
 
@@ -88,6 +89,10 @@ export default function registerSubagentExtension(pi: ExtensionAPI): void {
 			}
 
 			for (const job of asyncJobs.values()) {
+				// Skip status reads for finished jobs - they won't change
+				if (job.status === "complete" || job.status === "failed") {
+					continue;
+				}
 				const status = readStatus(job.asyncDir);
 				if (status) {
 					job.status = status.state;
@@ -589,10 +594,13 @@ For "scout → planner" or multi-step flows, use chain (not multiple single call
 		if (lastUiContext) {
 			renderWidget(lastUiContext, Array.from(asyncJobs.values()));
 		}
-		setTimeout(() => {
+		// Schedule cleanup after 10 seconds (track timer for cleanup on shutdown)
+		const timer = setTimeout(() => {
+			cleanupTimers.delete(asyncId);
 			asyncJobs.delete(asyncId);
 			if (lastUiContext) renderWidget(lastUiContext, Array.from(asyncJobs.values()));
 		}, 10000);
+		cleanupTimers.set(asyncId, timer);
 	});
 
 	pi.on("tool_result", (event, ctx) => {
@@ -608,6 +616,8 @@ For "scout → planner" or multi-step flows, use chain (not multiple single call
 	pi.on("session_start", (_event, ctx) => {
 		baseCwd = ctx.cwd;
 		currentSessionId = ctx.sessionManager.getSessionFile() ?? `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		for (const timer of cleanupTimers.values()) clearTimeout(timer);
+		cleanupTimers.clear();
 		asyncJobs.clear();
 		if (ctx.hasUI) {
 			lastUiContext = ctx;
@@ -617,6 +627,8 @@ For "scout → planner" or multi-step flows, use chain (not multiple single call
 	pi.on("session_switch", (_event, ctx) => {
 		baseCwd = ctx.cwd;
 		currentSessionId = ctx.sessionManager.getSessionFile() ?? `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		for (const timer of cleanupTimers.values()) clearTimeout(timer);
+		cleanupTimers.clear();
 		asyncJobs.clear();
 		if (ctx.hasUI) {
 			lastUiContext = ctx;
@@ -626,6 +638,8 @@ For "scout → planner" or multi-step flows, use chain (not multiple single call
 	pi.on("session_branch", (_event, ctx) => {
 		baseCwd = ctx.cwd;
 		currentSessionId = ctx.sessionManager.getSessionFile() ?? `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		for (const timer of cleanupTimers.values()) clearTimeout(timer);
+		cleanupTimers.clear();
 		asyncJobs.clear();
 		if (ctx.hasUI) {
 			lastUiContext = ctx;
@@ -636,6 +650,11 @@ For "scout → planner" or multi-step flows, use chain (not multiple single call
 		watcher.close();
 		if (poller) clearInterval(poller);
 		poller = null;
+		// Clear all pending cleanup timers
+		for (const timer of cleanupTimers.values()) {
+			clearTimeout(timer);
+		}
+		cleanupTimers.clear();
 		asyncJobs.clear();
 		if (lastUiContext?.hasUI) {
 			lastUiContext.ui.setWidget(WIDGET_KEY, undefined);
