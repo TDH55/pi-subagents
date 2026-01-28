@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-01-28
+
+### Improved
+- **README: Added agent file locations** - New "Agents" section near top of README clearly documents:
+  - User agents: `~/.pi/agent/agents/{name}.md`
+  - Project agents: `.pi/agents/{name}.md` (searches up directory tree)
+  - `agentScope` parameter explanation (`"user"`, `"project"`, `"both"`)
+  - Complete frontmatter example with all fields
+  - Note about system prompt being the markdown body after frontmatter
+
 ## [0.5.1] - 2026-01-27
 
 ### Fixed

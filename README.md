@@ -20,6 +20,39 @@ To remove:
 npx pi-subagents --remove
 ```
 
+## Agents
+
+Agents are markdown files with YAML frontmatter that define specialized subagent configurations.
+
+**Agent file locations:**
+
+| Scope | Path |
+|-------|------|
+| User | `~/.pi/agent/agents/{name}.md` |
+| Project | `.pi/agents/{name}.md` (searches up directory tree) |
+
+Use `agentScope` parameter to control discovery: `"user"` (default), `"project"`, or `"both"` (project takes priority).
+
+**Agent frontmatter:**
+
+```yaml
+---
+name: scout
+description: Fast codebase recon
+tools: read, grep, find, ls, bash
+model: claude-haiku-4-5
+skill: safe-bash, chrome-devtools  # comma-separated skills to inject
+output: context.md           # writes to {chain_dir}/context.md
+defaultReads: context.md     # comma-separated files to read
+defaultProgress: true        # maintain progress.md
+interactive: true            # (parsed but not enforced in v1)
+---
+
+Your system prompt goes here (the markdown body after frontmatter).
+```
+
+**Resolution priority:** step override > agent frontmatter > disabled
+
 ## Features (beyond base)
 
 - **Skill Injection**: Agents declare skills in frontmatter; skills get injected into system prompts
@@ -98,26 +131,6 @@ Single and parallel modes also support the clarify TUI for previewing/editing pa
 - `Page Up/Down` or `Shift+↑↓` - Move cursor by viewport (12 lines)
 - `Home/End` - Start/end of current display line
 - `Ctrl+Home/End` - Start/end of text
-
-## Agent Frontmatter
-
-Agents can declare default chain behavior in their frontmatter:
-
-```yaml
----
-name: scout
-description: Fast codebase recon
-tools: read, grep, find, ls, bash
-model: claude-haiku-4-5
-skill: safe-bash, chrome-devtools  # comma-separated skills to inject
-output: context.md           # writes to {chain_dir}/context.md
-defaultReads: context.md     # comma-separated files to read
-defaultProgress: true        # maintain progress.md
-interactive: true            # (parsed but not enforced in v1)
----
-```
-
-**Resolution priority:** step override > agent frontmatter > disabled
 
 ## Skills
 
