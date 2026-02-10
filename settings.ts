@@ -88,8 +88,8 @@ export function getStepAgents(step: ChainStep): string[] {
 // Chain Directory Management
 // =============================================================================
 
-export function createChainDir(runId: string): string {
-	const chainDir = path.join(CHAIN_RUNS_DIR, runId);
+export function createChainDir(runId: string, baseDir?: string): string {
+	const chainDir = path.join(baseDir ? path.resolve(baseDir) : CHAIN_RUNS_DIR, runId);
 	fs.mkdirSync(chainDir, { recursive: true });
 	return chainDir;
 }

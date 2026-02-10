@@ -76,6 +76,7 @@ export interface ChainExecutionParams {
 	clarify?: boolean;
 	onUpdate?: (r: AgentToolResult<Details>) => void;
 	chainSkills?: string[];
+	chainDir?: string;
 }
 
 export interface ChainExecutionResult {
@@ -103,6 +104,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 		clarify,
 		onUpdate,
 		chainSkills: chainSkillsParam,
+		chainDir: chainDirBase,
 	} = params;
 	const chainSkills = chainSkillsParam ?? [];
 
@@ -123,7 +125,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 		?? (isParallelStep(firstStep) ? firstStep.parallel[0]!.task! : (firstStep as SequentialStep).task!);
 
 	// Create chain directory
-	const chainDir = createChainDir(runId);
+	const chainDir = createChainDir(runId, chainDirBase);
 
 	// Check if chain has any parallel steps
 	const hasParallelSteps = chainSteps.some(isParallelStep);

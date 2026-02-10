@@ -377,6 +377,7 @@ MANAGEMENT (use action field — omit agent/task/chain/tasks):
 					clarify: params.clarify,
 					onUpdate,
 					chainSkills,
+					chainDir: params.chainDir,
 				});
 			}
 

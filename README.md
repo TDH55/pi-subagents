@@ -474,6 +474,7 @@ Notes:
 | `model` | string | agent default | Override model for single agent |
 | `tasks` | `{agent, task, cwd?, skill?}[]` | - | Parallel tasks (sync only) |
 | `chain` | ChainItem[] | - | Sequential steps with behavior overrides (see below) |
+| `chainDir` | string | `/tmp/pi-chain-runs/` | Persistent directory for chain artifacts (default auto-cleaned after 24h) |
 | `clarify` | boolean | true (chains) | Show TUI to preview/edit chain; implies sync mode |
 | `agentScope` | `"user" \| "project" \| "both"` | `user` | Agent discovery scope |
 | `async` | boolean | false | Background execution (requires `clarify: false` for chains) |
