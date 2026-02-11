@@ -242,6 +242,27 @@ export const ASYNC_DIR = "/tmp/pi-async-subagent-runs";
 export const WIDGET_KEY = "subagent-async";
 export const POLL_INTERVAL_MS = 250;
 export const MAX_WIDGET_JOBS = 4;
+export const DEFAULT_SUBAGENT_MAX_DEPTH = 2;
+
+// ============================================================================
+// Recursion Depth Guard
+// ============================================================================
+
+export function checkSubagentDepth(): { blocked: boolean; depth: number; maxDepth: number } {
+	const depth = Number(process.env.PI_SUBAGENT_DEPTH ?? "0");
+	const maxDepth = Number(process.env.PI_SUBAGENT_MAX_DEPTH ?? String(DEFAULT_SUBAGENT_MAX_DEPTH));
+	const blocked = Number.isFinite(depth) && Number.isFinite(maxDepth) && depth >= maxDepth;
+	return { blocked, depth, maxDepth };
+}
+
+export function getSubagentDepthEnv(): Record<string, string> {
+	const parentDepth = Number(process.env.PI_SUBAGENT_DEPTH ?? "0");
+	const nextDepth = Number.isFinite(parentDepth) ? parentDepth + 1 : 1;
+	return {
+		PI_SUBAGENT_DEPTH: String(nextDepth),
+		PI_SUBAGENT_MAX_DEPTH: process.env.PI_SUBAGENT_MAX_DEPTH ?? String(DEFAULT_SUBAGENT_MAX_DEPTH),
+	};
+}
 
 // ============================================================================
 // Utility Functions

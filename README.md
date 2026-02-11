@@ -595,6 +595,22 @@ Press **Ctrl+O** to expand the full streaming view with complete output per step
 
 > **Note:** Chain visualization (the `✓scout → ●planner` line) is only shown for sequential chains. Chains with parallel steps show per-step cards instead.
 
+## Nested subagent recursion guard
+
+Subagents can themselves call the `subagent` tool, which risks unbounded recursive spawning (slow, expensive, hard to observe). A depth guard prevents this.
+
+By default nesting is limited to **2 levels**: `main session → subagent → sub-subagent`. Any deeper `subagent` calls are blocked and return an error with guidance to the calling agent.
+
+Override the limit with `PI_SUBAGENT_MAX_DEPTH` **set before starting `pi`**:
+
+```bash
+export PI_SUBAGENT_MAX_DEPTH=3   # allow one more level (use with caution)
+export PI_SUBAGENT_MAX_DEPTH=1   # only allow direct subagents, no nesting
+export PI_SUBAGENT_MAX_DEPTH=0   # disable the subagent tool entirely
+```
+
+`PI_SUBAGENT_DEPTH` is an internal variable propagated automatically to child processes -- don't set it manually.
+
 ## Async observability
 
 Async runs write a dedicated observability folder:

@@ -11,6 +11,7 @@ import {
 	DEFAULT_MAX_OUTPUT,
 	type MaxOutputConfig,
 	truncateOutput,
+	getSubagentDepthEnv,
 } from "./types.js";
 
 interface SubagentStep {
@@ -102,8 +103,8 @@ function runPiStreaming(
 ): Promise<{ stdout: string; exitCode: number | null }> {
 	return new Promise((resolve) => {
 		const outputStream = fs.createWriteStream(outputFile, { flags: "w" });
-		const spawnEnv = env ? { ...process.env, ...env } : undefined;
-		const child = spawn("pi", args, { cwd, stdio: ["ignore", "pipe", "pipe"], ...(spawnEnv && { env: spawnEnv }) });
+		const spawnEnv = { ...process.env, ...(env ?? {}), ...getSubagentDepthEnv() };
+		const child = spawn("pi", args, { cwd, stdio: ["ignore", "pipe", "pipe"], env: spawnEnv });
 		let stdout = "";
 
 		child.stdout.on("data", (chunk: Buffer) => {

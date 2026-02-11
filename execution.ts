@@ -20,6 +20,7 @@ import {
 	type SingleResult,
 	DEFAULT_MAX_OUTPUT,
 	truncateOutput,
+	getSubagentDepthEnv,
 } from "./types.js";
 import {
 	writePrompt,
@@ -150,7 +151,7 @@ export async function runSync(
 		}
 	}
 
-	const spawnEnv = { ...process.env };
+	const spawnEnv = { ...process.env, ...getSubagentDepthEnv() };
 	const mcpDirect = agent.mcpDirectTools;
 	if (mcpDirect?.length) {
 		spawnEnv.MCP_DIRECT_TOOLS = mcpDirect.join(",");

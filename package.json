@@ -4,6 +4,7 @@
   "description": "Pi extension for delegating tasks to subagents with chains, parallel execution, and TUI clarification",
   "author": "Nico Bailon",
   "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nicobailon/pi-subagents.git"
@@ -26,10 +27,14 @@
   },
   "files": [
     "*.ts",
+    "!*.test.ts",
     "*.mjs",
     "README.md",
     "CHANGELOG.md"
   ],
+  "scripts": {
+    "test": "node --experimental-strip-types --test recursion-guard.test.ts"
+  },
   "pi": {
     "extensions": [
       "./index.ts",

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Recursion depth guard (`PI_SUBAGENT_MAX_DEPTH`) to prevent runaway nested subagent spawning. Default max depth is 2 (main -> subagent -> sub-subagent). Deeper calls are blocked with guidance to the calling agent.
+
 ## [0.8.1] - 2026-02-10
 
 ### Added

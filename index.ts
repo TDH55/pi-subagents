@@ -38,6 +38,7 @@ import {
 	POLL_INTERVAL_MS,
 	RESULTS_DIR,
 	WIDGET_KEY,
+	checkSubagentDepth,
 } from "./types.js";
 import { readStatus, findByPrefix, getFinalOutput, mapConcurrent } from "./utils.js";
 import { runSync } from "./execution.js";
@@ -189,6 +190,24 @@ MANAGEMENT (use action field — omit agent/task/chain/tasks):
 				}
 				return handleManagementAction(params.action, params, ctx);
 			}
+
+			const { blocked, depth, maxDepth } = checkSubagentDepth();
+			if (blocked) {
+				return {
+					content: [
+						{
+							type: "text",
+							text:
+								`Nested subagent call blocked (depth=${depth}, max=${maxDepth}). ` +
+								"You are running at the maximum subagent nesting depth. " +
+								"Complete your current task directly without delegating to further subagents.",
+						},
+					],
+					isError: true,
+					details: { mode: "single" as const, results: [] },
+				};
+			}
+
 			const scope: AgentScope = params.agentScope ?? "user";
 			currentSessionId = ctx.sessionManager.getSessionFile() ?? `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 			const agents = discoverAgents(ctx.cwd, scope).agents;
