@@ -28,6 +28,21 @@ function computeWidgetHash(jobs: AsyncJobState[]): string {
 	).join("|");
 }
 
+function extractOutputTarget(task: string): string | undefined {
+	const writeToMatch = task.match(/\[Write to:\s*([^\]\n]+)\]/i);
+	if (writeToMatch?.[1]?.trim()) return writeToMatch[1].trim();
+	const findingsMatch = task.match(/Write your findings to:\s*(\S+)/i);
+	if (findingsMatch?.[1]?.trim()) return findingsMatch[1].trim();
+	const outputMatch = task.match(/[Oo]utput(?:\s+to)?\s*:\s*(\S+)/i);
+	if (outputMatch?.[1]?.trim()) return outputMatch[1].trim();
+	return undefined;
+}
+
+function hasEmptyTextOutputWithoutOutputTarget(task: string, output: string): boolean {
+	if (output.trim()) return false;
+	return !extractOutputTarget(task);
+}
+
 /**
  * Render the async jobs widget
  */
@@ -158,11 +173,18 @@ export function renderSubagentResult(
 	const hasRunning = d.progress?.some((p) => p.status === "running") 
 		|| d.results.some((r) => r.progress?.status === "running");
 	const ok = d.results.filter((r) => r.progress?.status === "completed" || (r.exitCode === 0 && r.progress?.status !== "running")).length;
+	const hasEmptyWithoutTarget = d.results.some((r) =>
+		r.exitCode === 0
+		&& r.progress?.status !== "running"
+		&& hasEmptyTextOutputWithoutOutputTarget(r.task, getFinalOutput(r.messages)),
+	);
 	const icon = hasRunning
 		? theme.fg("warning", "...")
-		: ok === d.results.length
-			? theme.fg("success", "ok")
-			: theme.fg("error", "X");
+		: hasEmptyWithoutTarget
+			? theme.fg("warning", "⚠")
+			: ok === d.results.length
+				? theme.fg("success", "ok")
+				: theme.fg("error", "X");
 
 	const totalSummary =
 		d.progressSummary ||
@@ -205,14 +227,19 @@ export function renderSubagentResult(
 					const result = d.results[i];
 					const isFailed = result && result.exitCode !== 0 && result.progress?.status !== "running";
 					const isComplete = result && result.exitCode === 0 && result.progress?.status !== "running";
+					const isEmptyWithoutTarget = Boolean(result)
+						&& Boolean(isComplete)
+						&& hasEmptyTextOutputWithoutOutputTarget(result.task, getFinalOutput(result.messages));
 					const isCurrent = i === (d.currentStepIndex ?? d.results.length);
 					const icon = isFailed
 						? theme.fg("error", "✗")
-						: isComplete
-							? theme.fg("success", "✓")
-							: isCurrent && hasRunning
-								? theme.fg("warning", "●")
-								: theme.fg("dim", "○");
+						: isEmptyWithoutTarget
+							? theme.fg("warning", "⚠")
+							: isComplete
+								? theme.fg("success", "✓")
+								: isCurrent && hasRunning
+									? theme.fg("warning", "●")
+									: theme.fg("dim", "○");
 					return `${icon} ${agent}`;
 				})
 				.join(theme.fg("dim", " → "))
@@ -259,28 +286,27 @@ export function renderSubagentResult(
 		const rProg = r.progress || progressFromArray || r.progressSummary;
 		const rRunning = rProg?.status === "running";
 
-		// Step header with status
+		const resultOutput = getFinalOutput(r.messages);
 		const statusIcon = rRunning
 			? theme.fg("warning", "●")
-			: r.exitCode === 0
-				? theme.fg("success", "✓")
-				: theme.fg("error", "✗");
+			: r.exitCode !== 0
+				? theme.fg("error", "✗")
+				: hasEmptyTextOutputWithoutOutputTarget(r.task, resultOutput)
+					? theme.fg("warning", "⚠")
+					: theme.fg("success", "✓");
 		const stats = rProg ? ` | ${rProg.toolCount} tools, ${formatDuration(rProg.durationMs)}` : "";
-		// Show model if available (full provider/model format)
 		const modelDisplay = r.model ? theme.fg("dim", ` (${r.model})`) : "";
 		const stepHeader = rRunning
 			? `${statusIcon} Step ${i + 1}: ${theme.bold(theme.fg("warning", r.agent))}${modelDisplay}${stats}`
 			: `${statusIcon} Step ${i + 1}: ${theme.bold(r.agent)}${modelDisplay}${stats}`;
 		c.addChild(new Text(stepHeader, 0, 0));
 
-		// Task (truncated)
 		const taskPreview = r.task.slice(0, 120) + (r.task.length > 120 ? "..." : "");
 		c.addChild(new Text(theme.fg("dim", `    task: ${taskPreview}`), 0, 0));
 
-		// Output target (extract from task)
-		const outputMatch = r.task.match(/[Oo]utput(?:\s+to)?\s+([^\s]+\.(?:md|txt|json))/);
-		if (outputMatch) {
-			c.addChild(new Text(theme.fg("dim", `    output: ${outputMatch[1]}`), 0, 0));
+		const outputTarget = extractOutputTarget(r.task);
+		if (outputTarget) {
+			c.addChild(new Text(theme.fg("dim", `    output: ${outputTarget}`), 0, 0));
 		}
 
 		if (r.skills?.length) {

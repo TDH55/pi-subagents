@@ -359,6 +359,8 @@ export interface ParallelTaskResult {
 	output: string;
 	exitCode: number;
 	error?: string;
+	outputTargetPath?: string;
+	outputTargetExists?: boolean;
 }
 
 /**
@@ -369,7 +371,20 @@ export function aggregateParallelOutputs(results: ParallelTaskResult[]): string 
 	return results
 		.map((r, i) => {
 			const header = `=== Parallel Task ${i + 1} (${r.agent}) ===`;
-			return `${header}\n${r.output}`;
+			const hasTextOutput = Boolean(r.output?.trim());
+			const status = r.exitCode !== 0
+				? `⚠️ FAILED (exit code ${r.exitCode})${r.error ? `: ${r.error}` : ""}`
+				: r.error
+					? `⚠️ WARNING: ${r.error}`
+					: !hasTextOutput && r.outputTargetPath && r.outputTargetExists === false
+						? `⚠️ EMPTY OUTPUT (expected output file missing: ${r.outputTargetPath})`
+						: !hasTextOutput && !r.outputTargetPath
+							? "⚠️ EMPTY OUTPUT (no textual response returned)"
+							: "";
+			const body = status
+				? (hasTextOutput ? `${status}\n${r.output}` : status)
+				: r.output;
+			return `${header}\n${body}`;
 		})
 		.join("\n\n");
 }

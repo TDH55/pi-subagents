@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- Parallel chain aggregation now surfaces step failures and warnings in `{previous}` instead of silently passing empty output.
+- Empty-output warnings are now context-aware: runs that intentionally write to explicit output paths are not flagged as warning-only successes in the renderer.
+
 ### Changed
 - Reworked `skills.ts` to resolve skills through Pi core skill loading with explicit project-first precedence and support for project/user package and settings skill paths.
 - Skill discovery now normalizes and prioritizes collisions by source so project-scoped skills consistently win over user-scoped skills.

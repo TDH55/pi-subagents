@@ -376,13 +376,21 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 			}
 
 			// Aggregate outputs for {previous}
-			const taskResults: ParallelTaskResult[] = parallelResults.map((r, i) => ({
-				agent: r.agent,
-				taskIndex: i,
-				output: getFinalOutput(r.messages),
-				exitCode: r.exitCode,
-				error: r.error,
-			}));
+			const taskResults: ParallelTaskResult[] = parallelResults.map((r, i) => {
+				const outputTarget = parallelBehaviors[i]?.output;
+				const outputTargetPath = typeof outputTarget === "string"
+					? (path.isAbsolute(outputTarget) ? outputTarget : path.join(chainDir, outputTarget))
+					: undefined;
+				return {
+					agent: r.agent,
+					taskIndex: i,
+					output: getFinalOutput(r.messages),
+					exitCode: r.exitCode,
+					error: r.error,
+					outputTargetPath,
+					outputTargetExists: outputTargetPath ? fs.existsSync(outputTargetPath) : undefined,
+				};
+			});
 			prev = aggregateParallelOutputs(taskResults);
 		} else {
 			// === SEQUENTIAL STEP EXECUTION ===
