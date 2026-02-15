@@ -1,6 +1,7 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { pad, row, renderHeader, renderFooter, fuzzyFilter, formatScrollInfo } from "./render-helpers.js";
+import { matchesKeyAction, getKeyDisplay } from "./keybindings.js";
 
 export interface ListAgent {
 	id: string;
@@ -57,7 +58,7 @@ function clampCursor(state: ListState, filtered: ListAgent[]): void {
 export function handleListInput(state: ListState, agents: ListAgent[], data: string): ListAction | undefined {
 	const filtered = fuzzyFilter(agents, state.filterQuery);
 
-	if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+	if (matchesKeyAction(data, "detailBack")) {
 		if (state.filterQuery.length > 0) {
 			state.filterQuery = "";
 			state.cursor = 0;
@@ -71,7 +72,7 @@ export function handleListInput(state: ListState, agents: ListAgent[], data: str
 		return { type: "close" };
 	}
 
-	if (matchesKey(data, "return")) {
+	if (matchesKeyAction(data, "generalConfirm")) {
 		if (filtered.length > 0) {
 			const agent = filtered[state.cursor];
 			if (agent) return { type: "open-detail", id: agent.id };
@@ -79,14 +80,14 @@ export function handleListInput(state: ListState, agents: ListAgent[], data: str
 		return;
 	}
 
-	if (matchesKey(data, "up") || matchesKey(data, "down")) {
-		if (matchesKey(data, "up")) state.cursor -= 1;
-		if (matchesKey(data, "down")) state.cursor += 1;
+	if (matchesKeyAction(data, "editNavUp") || matchesKeyAction(data, "editNavDown")) {
+		if (matchesKeyAction(data, "editNavUp")) state.cursor -= 1;
+		if (matchesKeyAction(data, "editNavDown")) state.cursor += 1;
 		clampCursor(state, filtered);
 		return;
 	}
 
-	if (matchesKey(data, "backspace")) {
+	if (matchesKeyAction(data, "generalSearchBackspace")) {
 		if (state.filterQuery.length > 0) {
 			state.filterQuery = state.filterQuery.slice(0, -1);
 			state.cursor = 0;
@@ -95,23 +96,23 @@ export function handleListInput(state: ListState, agents: ListAgent[], data: str
 		return;
 	}
 
-	if (matchesKey(data, "alt+n")) {
+	if (matchesKeyAction(data, "listNew")) {
 		return { type: "new" };
 	}
 
-	if (matchesKey(data, "ctrl+k")) {
+	if (matchesKeyAction(data, "listClone")) {
 		const agent = filtered[state.cursor];
 		if (agent) return { type: "clone", id: agent.id };
 		return;
 	}
 
-	if (matchesKey(data, "ctrl+d") || matchesKey(data, "delete")) {
+	if (matchesKeyAction(data, "listDelete")) {
 		const agent = filtered[state.cursor];
 		if (agent) return { type: "delete", id: agent.id };
 		return;
 	}
 
-	if (matchesKey(data, "tab")) {
+	if (matchesKeyAction(data, "listSelect")) {
 		const agent = filtered[state.cursor];
 		if (!agent) return;
 		if (agent.kind !== "agent") return;
@@ -119,7 +120,7 @@ export function handleListInput(state: ListState, agents: ListAgent[], data: str
 		return;
 	}
 
-	if (matchesKey(data, "shift+tab")) {
+	if (matchesKeyAction(data, "listDeselect")) {
 		const agent = filtered[state.cursor];
 		if (!agent) return;
 		const lastIdx = state.selected.lastIndexOf(agent.id);
@@ -127,14 +128,14 @@ export function handleListInput(state: ListState, agents: ListAgent[], data: str
 		return;
 	}
 
-	if (matchesKey(data, "ctrl+r")) {
+	if (matchesKeyAction(data, "listRun")) {
 		if (state.selected.length > 0) return { type: "run-chain", ids: [...state.selected] };
 		const agent = filtered[state.cursor];
 		if (agent && agent.kind === "agent") return { type: "run-chain", ids: [agent.id] };
 		return;
 	}
 
-	if (matchesKey(data, "ctrl+p")) {
+	if (matchesKeyAction(data, "listParallel")) {
 		if (state.selected.length > 0) return { type: "run-parallel", ids: [...state.selected] };
 		const agent = filtered[state.cursor];
 		if (agent && agent.kind === "agent") return { type: "run-parallel", ids: [agent.id] };
@@ -254,10 +255,10 @@ export function renderList(
 
 	const selCount = state.selected.length;
 	const footerText = selCount > 1
-		? ` [ctrl+r] chain  [ctrl+p] parallel  [tab] add  [shift+tab] remove  [esc] clear (${selCount}) `
+		? ` [${getKeyDisplay("listRun")}] chain  [${getKeyDisplay("listParallel")}] parallel  [${getKeyDisplay("listSelect")}] add  [${getKeyDisplay("listDeselect")}] remove  [${getKeyDisplay("detailBack")}] clear (${selCount}) `
 		: selCount === 1
-			? " [ctrl+r] run  [ctrl+p] parallel  [tab] add more  [shift+tab] remove  [esc] clear "
-			: " [enter] view  [ctrl+r] run  [tab] select  [alt+n] new  [esc] close ";
+			? ` [${getKeyDisplay("listRun")}] run  [${getKeyDisplay("listParallel")}] parallel  [${getKeyDisplay("listSelect")}] add more  [${getKeyDisplay("listDeselect")}] remove  [${getKeyDisplay("detailBack")}] clear `
+			: ` [${getKeyDisplay("generalConfirm")}] view  [${getKeyDisplay("listRun")}] run  [${getKeyDisplay("listSelect")}] select  [${getKeyDisplay("listNew")}] new  [${getKeyDisplay("detailBack")}] close `;
 	lines.push(renderFooter(footerText, width, theme));
 
 	return lines;

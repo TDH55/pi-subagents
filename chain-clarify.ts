@@ -7,7 +7,7 @@
 
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import type { Component, TUI } from "@mariozechner/pi-tui";
-import { matchesKey, visibleWidth, truncateToWidth } from "@mariozechner/pi-tui";
+import { visibleWidth, truncateToWidth } from "@mariozechner/pi-tui";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -17,6 +17,7 @@ import type { TextEditorState } from "./text-editor.js";
 import { createEditorState, ensureCursorVisible, getCursorDisplayPos, handleEditorInput, renderEditor, wrapText } from "./text-editor.js";
 import { updateFrontmatterField } from "./agent-serializer.js";
 import { serializeChain } from "./chain-serializer.js";
+import { matchesKeyAction, getKeyDisplay } from "./keybindings.js";
 
 /** Clarify TUI mode */
 export type ClarifyMode = 'single' | 'parallel' | 'chain';
@@ -305,7 +306,7 @@ export class ChainClarifyComponent implements Component {
 	}
 
 	private handleSaveChainNameInput(data: string): void {
-		if (matchesKey(data, "tab")) return;
+		if (data === "tab") return;
 		const innerW = this.width - 2;
 		const boxInnerWidth = Math.max(10, innerW - 4);
 		const nextState = handleEditorInput(this.saveChainNameState, data, boxInnerWidth);
@@ -314,13 +315,13 @@ export class ChainClarifyComponent implements Component {
 			this.tui.requestRender();
 			return;
 		}
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+		if (matchesKeyAction(data, "chainCancel")) {
 			this.savingChain = false;
 			this.saveChainNameState = createEditorState();
 			this.tui.requestRender();
 			return;
 		}
-		if (matchesKey(data, "return")) {
+		if (matchesKeyAction(data, "chainConfirm")) {
 			const name = this.saveChainNameState.buffer.trim();
 			if (!name) {
 				this.showSaveMessage("Name is required", "error");
@@ -452,12 +453,12 @@ export class ChainClarifyComponent implements Component {
 		}
 
 		// Navigation mode
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+		if (matchesKeyAction(data, "chainCancel")) {
 			this.done({ confirmed: false, templates: [], behaviorOverrides: [] });
 			return;
 		}
 
-		if (matchesKey(data, "return")) {
+		if (matchesKeyAction(data, "chainConfirm")) {
 			// Build behavior overrides array
 			const overrides: (BehaviorOverride | undefined)[] = [];
 			for (let i = 0; i < this.agentConfigs.length; i++) {
@@ -467,13 +468,13 @@ export class ChainClarifyComponent implements Component {
 			return;
 		}
 
-		if (matchesKey(data, "up")) {
+		if (matchesKeyAction(data, "chainNavUp")) {
 			this.selectedStep = Math.max(0, this.selectedStep - 1);
 			this.tui.requestRender();
 			return;
 		}
 
-		if (matchesKey(data, "down")) {
+		if (matchesKeyAction(data, "chainNavDown")) {
 			const maxStep = Math.max(0, this.agentConfigs.length - 1);
 			this.selectedStep = Math.min(maxStep, this.selectedStep + 1);
 			this.tui.requestRender();
@@ -607,13 +608,13 @@ export class ChainClarifyComponent implements Component {
 	/** Handle input in model selector mode */
 	private handleModelSelectorInput(data: string): void {
 		// Escape or Ctrl+C - cancel and exit
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+		if (matchesKeyAction(data, "chainCancel")) {
 			this.exitEditMode();
 			return;
 		}
 
 		// Enter - select current model
-		if (matchesKey(data, "return")) {
+		if (matchesKeyAction(data, "chainConfirm")) {
 			const selected = this.filteredModels[this.modelSelectedIndex];
 			if (selected) {
 				this.updateBehavior(this.editingStep!, "model", selected.fullId);
@@ -623,7 +624,7 @@ export class ChainClarifyComponent implements Component {
 		}
 
 		// Up arrow - move selection up
-		if (matchesKey(data, "up")) {
+		if (matchesKeyAction(data, "chainNavUp")) {
 			if (this.filteredModels.length > 0) {
 				this.modelSelectedIndex = this.modelSelectedIndex === 0 
 					? this.filteredModels.length - 1 
@@ -634,7 +635,7 @@ export class ChainClarifyComponent implements Component {
 		}
 
 		// Down arrow - move selection down
-		if (matchesKey(data, "down")) {
+		if (matchesKeyAction(data, "chainNavDown")) {
 			if (this.filteredModels.length > 0) {
 				this.modelSelectedIndex = this.modelSelectedIndex === this.filteredModels.length - 1 
 					? 0 
@@ -645,7 +646,7 @@ export class ChainClarifyComponent implements Component {
 		}
 
 		// Backspace - delete last character from search
-		if (matchesKey(data, "backspace")) {
+		if (matchesKeyAction(data, "chainBackspace")) {
 			if (this.modelSearchQuery.length > 0) {
 				this.modelSearchQuery = this.modelSearchQuery.slice(0, -1);
 				this.filterModels();
@@ -685,13 +686,13 @@ export class ChainClarifyComponent implements Component {
 	/** Handle input in thinking level selector mode */
 	private handleThinkingSelectorInput(data: string): void {
 		// Escape or Ctrl+C - cancel and exit
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+		if (matchesKeyAction(data, "chainCancel")) {
 			this.exitEditMode();
 			return;
 		}
 
 		// Enter - select current thinking level
-		if (matchesKey(data, "return")) {
+		if (matchesKeyAction(data, "chainConfirm")) {
 			const selectedLevel = THINKING_LEVELS[this.thinkingSelectedIndex];
 			this.applyThinkingLevel(selectedLevel);
 			this.exitEditMode();
@@ -699,7 +700,7 @@ export class ChainClarifyComponent implements Component {
 		}
 
 		// Up arrow - move selection up
-		if (matchesKey(data, "up")) {
+		if (matchesKeyAction(data, "chainNavUp")) {
 			this.thinkingSelectedIndex = this.thinkingSelectedIndex === 0 
 				? THINKING_LEVELS.length - 1 
 				: this.thinkingSelectedIndex - 1;
@@ -708,7 +709,7 @@ export class ChainClarifyComponent implements Component {
 		}
 
 		// Down arrow - move selection down
-		if (matchesKey(data, "down")) {
+		if (matchesKeyAction(data, "chainNavDown")) {
 			this.thinkingSelectedIndex = this.thinkingSelectedIndex === THINKING_LEVELS.length - 1 
 				? 0 
 				: this.thinkingSelectedIndex + 1;
@@ -751,12 +752,12 @@ export class ChainClarifyComponent implements Component {
 	}
 
 	private handleSkillSelectorInput(data: string): void {
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+		if (matchesKeyAction(data, "chainCancel")) {
 			this.exitEditMode();
 			return;
 		}
 
-		if (matchesKey(data, "return")) {
+		if (matchesKeyAction(data, "chainConfirm")) {
 			const selected = [...this.skillSelectedNames];
 			this.updateBehavior(this.editingStep!, "skills", selected);
 			this.exitEditMode();
@@ -778,7 +779,7 @@ export class ChainClarifyComponent implements Component {
 			return;
 		}
 
-		if (matchesKey(data, "up")) {
+		if (matchesKeyAction(data, "chainNavUp")) {
 			if (this.filteredSkills.length > 0) {
 				this.skillCursorIndex = this.skillCursorIndex === 0
 					? this.filteredSkills.length - 1
@@ -788,7 +789,7 @@ export class ChainClarifyComponent implements Component {
 			return;
 		}
 
-		if (matchesKey(data, "down")) {
+		if (matchesKeyAction(data, "chainNavDown")) {
 			if (this.filteredSkills.length > 0) {
 				this.skillCursorIndex = this.skillCursorIndex === this.filteredSkills.length - 1
 					? 0
@@ -798,7 +799,7 @@ export class ChainClarifyComponent implements Component {
 			return;
 		}
 
-		if (matchesKey(data, "backspace")) {
+		if (matchesKeyAction(data, "chainBackspace")) {
 			if (this.skillSearchQuery.length > 0) {
 				this.skillSearchQuery = this.skillSearchQuery.slice(0, -1);
 				this.filterSkills();
@@ -817,7 +818,7 @@ export class ChainClarifyComponent implements Component {
 
 	private handleEditInput(data: string): void {
 		const textWidth = this.width - 4; // Must match render: innerW - 2 = (width - 2) - 2
-		if (matchesKey(data, "shift+up") || matchesKey(data, "pageup")) {
+		if (matchesKeyAction(data, "chainNavPageUp")) {
 			const { lines: wrapped, starts } = wrapText(this.editState.buffer, textWidth);
 			const cursorPos = getCursorDisplayPos(this.editState.cursor, starts);
 			const targetLine = Math.max(0, cursorPos.line - this.EDIT_VIEWPORT_HEIGHT);
@@ -827,7 +828,7 @@ export class ChainClarifyComponent implements Component {
 			return;
 		}
 
-		if (matchesKey(data, "shift+down") || matchesKey(data, "pagedown")) {
+		if (matchesKeyAction(data, "chainNavPageDown")) {
 			const { lines: wrapped, starts } = wrapText(this.editState.buffer, textWidth);
 			const cursorPos = getCursorDisplayPos(this.editState.cursor, starts);
 			const targetLine = Math.min(wrapped.length - 1, cursorPos.line + this.EDIT_VIEWPORT_HEIGHT);
@@ -837,7 +838,7 @@ export class ChainClarifyComponent implements Component {
 			return;
 		}
 
-		if (matchesKey(data, "tab")) return;
+		if (data === "tab") return;
 
 		const nextState = handleEditorInput(this.editState, data, textWidth);
 		if (nextState) {
@@ -846,13 +847,13 @@ export class ChainClarifyComponent implements Component {
 			return;
 		}
 
-		if (matchesKey(data, "escape")) {
+		if (data === "escape") {
 			this.saveEdit();
 			this.exitEditMode();
 			return;
 		}
 
-		if (matchesKey(data, "ctrl+c")) {
+		if (data === "ctrl+c") {
 			this.exitEditMode();
 			return;
 		}

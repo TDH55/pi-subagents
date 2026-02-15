@@ -1,7 +1,8 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey, truncateToWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth } from "@mariozechner/pi-tui";
 import type { ChainConfig, ChainStepConfig } from "./agents.js";
 import { row, renderFooter, renderHeader, formatPath, formatScrollInfo } from "./render-helpers.js";
+import { matchesKeyAction } from "./keybindings.js";
 
 export interface ChainDetailState {
 	scrollOffset: number;
@@ -81,13 +82,13 @@ function buildChainDetailLines(chain: ChainConfig, width: number): string[] {
 }
 
 export function handleChainDetailInput(state: ChainDetailState, data: string): ChainDetailAction | undefined {
-	if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) return { type: "back" };
+	if (matchesKeyAction(data, "detailBack")) return { type: "back" };
 	if (data === "l") return { type: "launch" };
 	if (data === "e") return { type: "edit" };
-	if (matchesKey(data, "up")) { state.scrollOffset--; return; }
-	if (matchesKey(data, "down")) { state.scrollOffset++; return; }
-	if (matchesKey(data, "pageup") || matchesKey(data, "shift+up")) { state.scrollOffset -= CHAIN_DETAIL_VIEWPORT_HEIGHT; return; }
-	if (matchesKey(data, "pagedown") || matchesKey(data, "shift+down")) { state.scrollOffset += CHAIN_DETAIL_VIEWPORT_HEIGHT; return; }
+	if (matchesKeyAction(data, "detailScrollUp")) { state.scrollOffset--; return; }
+	if (matchesKeyAction(data, "detailScrollDown")) { state.scrollOffset++; return; }
+	if (matchesKeyAction(data, "detailPageUp")) { state.scrollOffset -= CHAIN_DETAIL_VIEWPORT_HEIGHT; return; }
+	if (matchesKeyAction(data, "detailPageDown")) { state.scrollOffset += CHAIN_DETAIL_VIEWPORT_HEIGHT; return; }
 	return;
 }
 

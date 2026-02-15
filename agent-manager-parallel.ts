@@ -1,8 +1,9 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import type { TextEditorState } from "./text-editor.js";
 import { createEditorState, handleEditorInput, renderEditor, wrapText, getCursorDisplayPos, ensureCursorVisible } from "./text-editor.js";
 import { pad, row, renderHeader, renderFooter, fuzzyFilter } from "./render-helpers.js";
+import { matchesKeyAction, getKeyDisplay } from "./keybindings.js";
 
 export interface ParallelSlot {
 	agentName: string;
@@ -71,18 +72,18 @@ export function handleParallelInput(
 }
 
 function handleBrowse(state: ParallelState, data: string): ParallelAction | undefined {
-	if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) return { type: "back" };
-	if (matchesKey(data, "up")) { state.cursor = Math.max(0, state.cursor - 1); clampSlotScroll(state, SLOT_VIEWPORT_BROWSE); return; }
-	if (matchesKey(data, "down")) { state.cursor = Math.min(state.slots.length - 1, state.cursor + 1); clampSlotScroll(state, SLOT_VIEWPORT_BROWSE); return; }
+	if (matchesKeyAction(data, "parallelBack")) return { type: "back" };
+	if (matchesKeyAction(data, "editNavUp")) { state.cursor = Math.max(0, state.cursor - 1); clampSlotScroll(state, SLOT_VIEWPORT_BROWSE); return; }
+	if (matchesKeyAction(data, "editNavDown")) { state.cursor = Math.min(state.slots.length - 1, state.cursor + 1); clampSlotScroll(state, SLOT_VIEWPORT_BROWSE); return; }
 
-	if (matchesKey(data, "ctrl+a")) {
+	if (matchesKeyAction(data, "parallelAdd")) {
 		state.mode = "add";
 		state.addQuery = "";
 		state.addCursor = 0;
 		return;
 	}
 
-	if (matchesKey(data, "delete") || matchesKey(data, "ctrl+d")) {
+	if (matchesKeyAction(data, "parallelRemove")) {
 		if (state.slots.length > 1) {
 			state.slots.splice(state.cursor, 1);
 			state.cursor = Math.min(state.cursor, state.slots.length - 1);
@@ -91,7 +92,7 @@ function handleBrowse(state: ParallelState, data: string): ParallelAction | unde
 		return;
 	}
 
-	if (matchesKey(data, "return")) {
+	if (matchesKeyAction(data, "generalConfirm")) {
 		if (state.slots.length === 0) return;
 		state.mode = "edit-task";
 		state.editIndex = state.cursor;
@@ -99,7 +100,7 @@ function handleBrowse(state: ParallelState, data: string): ParallelAction | unde
 		return;
 	}
 
-	if (matchesKey(data, "ctrl+r")) {
+	if (matchesKeyAction(data, "parallelRun")) {
 		if (state.slots.length >= 2) return { type: "proceed" };
 		return;
 	}
@@ -108,14 +109,14 @@ function handleBrowse(state: ParallelState, data: string): ParallelAction | unde
 }
 
 function handleAdd(state: ParallelState, agents: AgentOption[], data: string): ParallelAction | undefined {
-	if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { state.mode = "browse"; return; }
+	if (matchesKeyAction(data, "parallelBack")) { state.mode = "browse"; return; }
 
 	const filtered = fuzzyFilter(agents, state.addQuery);
 
-	if (matchesKey(data, "up")) { state.addCursor = Math.max(0, state.addCursor - 1); return; }
-	if (matchesKey(data, "down")) { state.addCursor = Math.min(Math.max(0, filtered.length - 1), state.addCursor + 1); return; }
+	if (matchesKeyAction(data, "editNavUp")) { state.addCursor = Math.max(0, state.addCursor - 1); return; }
+	if (matchesKeyAction(data, "editNavDown")) { state.addCursor = Math.min(Math.max(0, filtered.length - 1), state.addCursor + 1); return; }
 
-	if (matchesKey(data, "return")) {
+	if (matchesKeyAction(data, "generalConfirm")) {
 		const selected = filtered[state.addCursor];
 		if (selected) {
 			state.slots.push({ agentName: selected.name, customTask: "" });
@@ -126,7 +127,7 @@ function handleAdd(state: ParallelState, agents: AgentOption[], data: string): P
 		return;
 	}
 
-	if (matchesKey(data, "backspace")) {
+	if (matchesKeyAction(data, "generalSearchBackspace")) {
 		state.addQuery = state.addQuery.slice(0, -1);
 		state.addCursor = 0;
 		return;
@@ -144,13 +145,13 @@ function handleAdd(state: ParallelState, agents: AgentOption[], data: string): P
 function handleEditTask(state: ParallelState, data: string, width: number): ParallelAction | undefined {
 	if (!state.editEditor) { state.mode = "browse"; return; }
 
-	if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+	if (matchesKeyAction(data, "editDiscard")) {
 		state.editEditor = null;
 		state.mode = "browse";
 		return;
 	}
 
-	if (matchesKey(data, "return")) {
+	if (matchesKeyAction(data, "generalConfirm")) {
 		const slot = state.slots[state.editIndex];
 		if (slot) slot.customTask = state.editEditor.buffer.trim();
 		state.editEditor = null;
@@ -158,7 +159,7 @@ function handleEditTask(state: ParallelState, data: string, width: number): Para
 		return;
 	}
 
-	if (matchesKey(data, "tab")) return;
+	if (data === "tab") return;
 
 	const innerW = width - 2;
 	const boxInnerWidth = Math.max(10, innerW - 4);
@@ -280,11 +281,11 @@ export function renderParallel(
 
 	let footerText: string;
 	if (state.mode === "add") {
-		footerText = " [enter] add  [esc] cancel ";
+		footerText = ` [${getKeyDisplay("generalConfirm")}] add  [${getKeyDisplay("generalCancel")}] cancel `;
 	} else if (state.mode === "edit-task") {
-		footerText = " [enter] save  [esc] cancel ";
+		footerText = ` [${getKeyDisplay("generalConfirm")}] save  [${getKeyDisplay("generalCancel")}] cancel `;
 	} else {
-		footerText = " [ctrl+a] add  [del] remove  [enter] edit task  [ctrl+r] continue  [esc] back ";
+		footerText = ` [${getKeyDisplay("parallelAdd")}] add  [${getKeyDisplay("parallelRemove")}] remove  [${getKeyDisplay("generalConfirm")}] edit task  [${getKeyDisplay("parallelRun")}] continue  [${getKeyDisplay("parallelBack")}] back `;
 	}
 	lines.push(renderFooter(footerText, width, theme));
 

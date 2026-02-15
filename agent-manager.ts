@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import type { Component, TUI } from "@mariozechner/pi-tui";
-import { matchesKey, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import type { AgentConfig, ChainConfig } from "./agents.js";
 import { serializeAgent } from "./agent-serializer.js";
 import { TEMPLATE_ITEMS, type AgentTemplate, type TemplateItem } from "./agent-templates.js";
@@ -16,6 +16,7 @@ import { createEditorState, ensureCursorVisible, getCursorDisplayPos, handleEdit
 import type { TextEditorState } from "./text-editor.js";
 import { loadRunsForAgent } from "./run-history.js";
 import { pad, row, renderHeader, renderFooter } from "./render-helpers.js";
+import { matchesKeyAction } from "./keybindings.js";
 
 export type ManagerResult =
 	| { action: "launch"; agent: string; task: string; skipClarify?: boolean }
@@ -132,10 +133,10 @@ export class AgentManagerComponent implements Component {
 	}
 
 	private handleTemplateSelectInput(data: string): void {
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { this.screen = "list"; this.tui.requestRender(); return; }
-		if (matchesKey(data, "up")) { this.templateCursor = nextSelectableIndex(TEMPLATE_ITEMS, this.templateCursor, -1); this.tui.requestRender(); return; }
-		if (matchesKey(data, "down")) { this.templateCursor = nextSelectableIndex(TEMPLATE_ITEMS, this.templateCursor, 1); this.tui.requestRender(); return; }
-		if (matchesKey(data, "return")) {
+		if (matchesKeyAction(data, "templateCancel")) { this.screen = "list"; this.tui.requestRender(); return; }
+		if (matchesKeyAction(data, "templateNavUp")) { this.templateCursor = nextSelectableIndex(TEMPLATE_ITEMS, this.templateCursor, -1); this.tui.requestRender(); return; }
+		if (matchesKeyAction(data, "templateNavDown")) { this.templateCursor = nextSelectableIndex(TEMPLATE_ITEMS, this.templateCursor, 1); this.tui.requestRender(); return; }
+		if (matchesKeyAction(data, "templateSelect")) {
 			const item = TEMPLATE_ITEMS[this.templateCursor];
 			if (!item || item.type === "separator") return;
 			if (item.type === "agent") this.enterNameInput("new-agent", undefined, { name: item.name, config: item.config });
@@ -147,11 +148,11 @@ export class AgentManagerComponent implements Component {
 	private handleNameInput(data: string): void {
 		const state = this.nameInputState; if (!state) return; state.error = undefined;
 		const canToggleScope = state.allowProject;
-		if (matchesKey(data, "tab")) { if (canToggleScope) { state.scope = state.scope === "user" ? "project" : "user"; this.tui.requestRender(); } return; }
+		if (matchesKeyAction(data, "templateToggleScope")) { if (canToggleScope) { state.scope = state.scope === "user" ? "project" : "user"; this.tui.requestRender(); } return; }
 		const innerW = this.overlayWidth - 2; const boxInnerWidth = Math.max(10, innerW - 4);
 		const nextState = handleEditorInput(state.editor, data, boxInnerWidth); if (nextState) { state.editor = nextState; this.tui.requestRender(); return; }
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { this.nameInputState = null; this.screen = "list"; this.tui.requestRender(); return; }
-		if (!matchesKey(data, "return")) return;
+		if (matchesKeyAction(data, "templateCancel")) { this.nameInputState = null; this.screen = "list"; this.tui.requestRender(); return; }
+		if (!matchesKeyAction(data, "templateSelect")) return;
 		const name = state.editor.buffer.trim(); if (!name) { state.error = "Name is required."; this.tui.requestRender(); return; }
 
 		if (state.mode === "clone-chain" && state.sourceId) {
@@ -275,11 +276,11 @@ export class AgentManagerComponent implements Component {
 				return;
 			}
 			case "task-input": {
-				if (matchesKey(data, "tab")) { this.skipClarify = !this.skipClarify; this.tui.requestRender(); return; }
+				if (matchesKeyAction(data, "taskToggleSkipClarify")) { this.skipClarify = !this.skipClarify; this.tui.requestRender(); return; }
 				const innerW = this.overlayWidth - 2; const boxInnerWidth = Math.max(10, innerW - 4); const nextState = handleEditorInput(this.taskEditor, data, boxInnerWidth);
 				if (nextState) { this.taskEditor = nextState; this.tui.requestRender(); return; }
-				if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { this.screen = this.taskBackScreen; this.tui.requestRender(); return; }
-				if (matchesKey(data, "return")) {
+				if (matchesKeyAction(data, "taskCancel")) { this.screen = this.taskBackScreen; this.tui.requestRender(); return; }
+				if (matchesKeyAction(data, "taskSubmit")) {
 					if (this.chainLaunchId) {
 						const chainEntry = this.getChainEntry(this.chainLaunchId); if (!chainEntry) { this.screen = "list"; this.tui.requestRender(); return; }
 						this.done({ action: "launch-chain", chain: cloneChainConfig(chainEntry.config), task: this.taskEditor.buffer, skipClarify: this.skipClarify }); return;
@@ -300,22 +301,22 @@ export class AgentManagerComponent implements Component {
 					try { if (agent) { fs.unlinkSync(agent.config.filePath); this.removeAgentEntry(agent); } else if (chain) { fs.unlinkSync(chain.config.filePath); this.removeChainEntry(chain); } this.confirmDeleteId = null; this.screen = "list"; this.tui.requestRender(); return; }
 					catch (err) { this.statusMessage = { text: err instanceof Error ? err.message : "Failed to delete item.", type: "error" }; this.confirmDeleteId = null; this.screen = "list"; this.tui.requestRender(); return; }
 				}
-				if (data === "n" || data === "N" || matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { this.confirmDeleteId = null; this.screen = "list"; this.tui.requestRender(); return; }
+				if (data === "n" || data === "N" || matchesKeyAction(data, "generalCancel")) { this.confirmDeleteId = null; this.screen = "list"; this.tui.requestRender(); return; }
 				return;
 			}
 			case "name-input": this.handleNameInput(data); return;
 			case "chain-edit": {
 				if (!this.chainEditState) { this.screen = "chain-detail"; this.tui.requestRender(); return; }
-				if (matchesKey(data, "ctrl+s")) { this.saveChainEdit(); this.tui.requestRender(); return; }
+				if (matchesKeyAction(data, "editSave")) { this.saveChainEdit(); this.tui.requestRender(); return; }
 				const innerW = this.overlayWidth - 2; const boxInnerWidth = Math.max(10, innerW - 4);
-				if (matchesKey(data, "shift+up") || matchesKey(data, "pageup") || matchesKey(data, "shift+down") || matchesKey(data, "pagedown")) {
+				if (matchesKeyAction(data, "detailPageUp") || matchesKeyAction(data, "detailPageDown")) {
 					const { lines: wrapped, starts } = wrapText(this.chainEditState.editor.buffer, boxInnerWidth); const cursorPos = getCursorDisplayPos(this.chainEditState.editor.cursor, starts);
-					const dir = matchesKey(data, "shift+up") || matchesKey(data, "pageup") ? -1 : 1; const targetLine = Math.max(0, Math.min(wrapped.length - 1, cursorPos.line + dir * CHAIN_EDIT_VIEWPORT));
+					const dir = matchesKeyAction(data, "detailPageUp") ? -1 : 1; const targetLine = Math.max(0, Math.min(wrapped.length - 1, cursorPos.line + dir * CHAIN_EDIT_VIEWPORT));
 					const targetCol = Math.min(cursorPos.col, wrapped[targetLine]?.length ?? 0); this.chainEditState.editor = { ...this.chainEditState.editor, cursor: starts[targetLine] + targetCol }; this.tui.requestRender(); return;
 				}
 				const nextState = handleEditorInput(this.chainEditState.editor, data, boxInnerWidth, { multiLine: true });
 				if (nextState) { this.chainEditState.editor = nextState; this.tui.requestRender(); return; }
-				if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { this.chainEditState = null; this.screen = "chain-detail"; this.tui.requestRender(); return; }
+				if (matchesKeyAction(data, "editDiscard")) { this.chainEditState = null; this.screen = "chain-detail"; this.tui.requestRender(); return; }
 				return;
 			}
 			case "edit": case "edit-field": case "edit-prompt": {

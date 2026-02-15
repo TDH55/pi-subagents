@@ -1,5 +1,5 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey, truncateToWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth } from "@mariozechner/pi-tui";
 import type { AgentConfig } from "./agents.js";
 import { formatDuration } from "./formatters.js";
 import type { RunEntry } from "./run-history.js";
@@ -7,6 +7,7 @@ import { buildSkillInjection, resolveSkills } from "./skills.js";
 import { ensureCursorVisible, getCursorDisplayPos, renderEditor, wrapText } from "./text-editor.js";
 import type { TextEditorState } from "./text-editor.js";
 import { pad, row, renderHeader, renderFooter, formatPath, formatScrollInfo } from "./render-helpers.js";
+import { matchesKeyAction } from "./keybindings.js";
 
 export interface DetailState {
 	resolved: boolean;
@@ -110,14 +111,14 @@ function buildDetailLines(
 }
 
 export function handleDetailInput(state: DetailState, data: string): DetailAction | undefined {
-	if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) return { type: "back" };
+	if (matchesKeyAction(data, "detailBack")) return { type: "back" };
 	if (data === "e") return { type: "edit" };
 	if (data === "l") return { type: "launch" };
 	if (data === "v") { state.resolved = !state.resolved; state.scrollOffset = 0; return; }
-	if (matchesKey(data, "up")) { state.scrollOffset--; return; }
-	if (matchesKey(data, "down")) { state.scrollOffset++; return; }
-	if (matchesKey(data, "pageup") || matchesKey(data, "shift+up")) { state.scrollOffset -= DETAIL_VIEWPORT_HEIGHT; return; }
-	if (matchesKey(data, "pagedown") || matchesKey(data, "shift+down")) { state.scrollOffset += DETAIL_VIEWPORT_HEIGHT; return; }
+	if (matchesKeyAction(data, "detailScrollUp")) { state.scrollOffset--; return; }
+	if (matchesKeyAction(data, "detailScrollDown")) { state.scrollOffset++; return; }
+	if (matchesKeyAction(data, "detailPageUp")) { state.scrollOffset -= DETAIL_VIEWPORT_HEIGHT; return; }
+	if (matchesKeyAction(data, "detailPageDown")) { state.scrollOffset += DETAIL_VIEWPORT_HEIGHT; return; }
 	return;
 }
 

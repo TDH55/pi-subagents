@@ -54,6 +54,7 @@ import { finalizeSingleOutput, injectSingleOutputInstruction, resolveSingleOutpu
 import { AgentManagerComponent, type ManagerResult } from "./agent-manager.js";
 import { recordRun } from "./run-history.js";
 import { handleManagementAction } from "./agent-management.js";
+import { loadUserKeybindings } from "./keybindings.js";
 
 // ExtensionConfig is now imported from ./types.js
 
@@ -68,6 +69,9 @@ function loadConfig(): ExtensionConfig {
 }
 
 export default function registerSubagentExtension(pi: ExtensionAPI): void {
+	// Load user-configurable keybindings
+	loadUserKeybindings();
+
 	fs.mkdirSync(RESULTS_DIR, { recursive: true });
 	fs.mkdirSync(ASYNC_DIR, { recursive: true });
 

@@ -1,9 +1,10 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey, truncateToWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth } from "@mariozechner/pi-tui";
 import type { AgentConfig } from "./agents.js";
 import { createEditorState, ensureCursorVisible, getCursorDisplayPos, handleEditorInput, renderEditor, wrapText } from "./text-editor.js";
 import type { TextEditorState } from "./text-editor.js";
 import { pad, row, renderHeader, renderFooter, formatScrollInfo } from "./render-helpers.js";
+import { matchesKeyAction } from "./keybindings.js";
 
 export interface ModelInfo { provider: string; id: string; fullId: string; }
 export interface SkillInfo { name: string; source: string; description?: string; }
@@ -179,16 +180,16 @@ function renderPromptEditor(state: EditState, width: number, theme: Theme): stri
 
 export function handleEditInput(screen: EditScreen, state: EditState, data: string, width: number, models: ModelInfo[], skills: SkillInfo[]): EditInputResult | undefined {
 	if (screen === "edit") {
-		if (matchesKey(data, "ctrl+s")) return { action: "save" };
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) return { action: "discard" };
-		if (matchesKey(data, "up")) { state.fieldIndex = Math.max(0, state.fieldIndex - 1); return; }
-		if (matchesKey(data, "down")) { state.fieldIndex = Math.min(FIELD_ORDER.length - 1, state.fieldIndex + 1); return; }
+		if (matchesKeyAction(data, "editSave")) return { action: "save" };
+		if (matchesKeyAction(data, "editDiscard")) return { action: "discard" };
+		if (matchesKeyAction(data, "editNavUp")) { state.fieldIndex = Math.max(0, state.fieldIndex - 1); return; }
+		if (matchesKeyAction(data, "editNavDown")) { state.fieldIndex = Math.min(FIELD_ORDER.length - 1, state.fieldIndex + 1); return; }
 		const field = FIELD_ORDER[state.fieldIndex]!;
 		if (data === "m") { openModelPicker(state, models); return { nextScreen: "edit-field" }; }
 		if (data === "t") { openThinkingPicker(state); return { nextScreen: "edit-field" }; }
 		if (data === "s") { openSkillPicker(state, skills); return { nextScreen: "edit-field" }; }
 		if (data === " " && (field === "progress" || field === "interactive")) { if (field === "progress") state.draft.defaultProgress = !state.draft.defaultProgress; if (field === "interactive") state.draft.interactive = !state.draft.interactive; return; }
-		if (matchesKey(data, "return")) {
+		if (matchesKeyAction(data, "editFieldSelect")) {
 			if (field === "model") { openModelPicker(state, models); return { nextScreen: "edit-field" }; }
 			if (field === "thinking") { openThinkingPicker(state); return { nextScreen: "edit-field" }; }
 			if (field === "skills") { openSkillPicker(state, skills); return { nextScreen: "edit-field" }; }
@@ -200,11 +201,11 @@ export function handleEditInput(screen: EditScreen, state: EditState, data: stri
 	}
 	if (screen === "edit-field") {
 		if (state.fieldMode === "model") {
-			if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { state.fieldMode = null; return { nextScreen: "edit" }; }
-			if (matchesKey(data, "return")) { const selected = state.filteredModels[state.modelCursor]; if (selected) state.draft.model = selected.fullId; state.fieldMode = null; return { nextScreen: "edit" }; }
-			if (matchesKey(data, "up")) { if (state.filteredModels.length > 0) state.modelCursor = state.modelCursor === 0 ? state.filteredModels.length - 1 : state.modelCursor - 1; return; }
-			if (matchesKey(data, "down")) { if (state.filteredModels.length > 0) state.modelCursor = state.modelCursor === state.filteredModels.length - 1 ? 0 : state.modelCursor + 1; return; }
-			if (matchesKey(data, "backspace")) { if (state.modelSearchQuery.length > 0) state.modelSearchQuery = state.modelSearchQuery.slice(0, -1); }
+			if (matchesKeyAction(data, "editDiscard")) { state.fieldMode = null; return { nextScreen: "edit" }; }
+			if (matchesKeyAction(data, "editFieldSelect")) { const selected = state.filteredModels[state.modelCursor]; if (selected) state.draft.model = selected.fullId; state.fieldMode = null; return { nextScreen: "edit" }; }
+			if (matchesKeyAction(data, "editNavUp")) { if (state.filteredModels.length > 0) state.modelCursor = state.modelCursor === 0 ? state.filteredModels.length - 1 : state.modelCursor - 1; return; }
+			if (matchesKeyAction(data, "editNavDown")) { if (state.filteredModels.length > 0) state.modelCursor = state.modelCursor === state.filteredModels.length - 1 ? 0 : state.modelCursor + 1; return; }
+			if (matchesKeyAction(data, "generalSearchBackspace")) { if (state.modelSearchQuery.length > 0) state.modelSearchQuery = state.modelSearchQuery.slice(0, -1); }
 			else if (data.length === 1 && data.charCodeAt(0) >= 32) state.modelSearchQuery += data;
 			const query = state.modelSearchQuery.toLowerCase();
 			state.filteredModels = query ? models.filter((m) => m.fullId.toLowerCase().includes(query) || m.id.toLowerCase().includes(query) || m.provider.toLowerCase().includes(query)) : [...models];
@@ -212,36 +213,36 @@ export function handleEditInput(screen: EditScreen, state: EditState, data: stri
 			return;
 		}
 		if (state.fieldMode === "thinking") {
-			if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { state.fieldMode = null; return { nextScreen: "edit" }; }
-			if (matchesKey(data, "return")) { const selected = THINKING_LEVELS[state.thinkingCursor]; state.draft.thinking = selected === "off" ? undefined : selected; state.fieldMode = null; return { nextScreen: "edit" }; }
-			if (matchesKey(data, "up")) { state.thinkingCursor = state.thinkingCursor === 0 ? THINKING_LEVELS.length - 1 : state.thinkingCursor - 1; return; }
-			if (matchesKey(data, "down")) { state.thinkingCursor = state.thinkingCursor === THINKING_LEVELS.length - 1 ? 0 : state.thinkingCursor + 1; return; }
+			if (matchesKeyAction(data, "editDiscard")) { state.fieldMode = null; return { nextScreen: "edit" }; }
+			if (matchesKeyAction(data, "editFieldSelect")) { const selected = THINKING_LEVELS[state.thinkingCursor]; state.draft.thinking = selected === "off" ? undefined : selected; state.fieldMode = null; return { nextScreen: "edit" }; }
+			if (matchesKeyAction(data, "editNavUp")) { state.thinkingCursor = state.thinkingCursor === 0 ? THINKING_LEVELS.length - 1 : state.thinkingCursor - 1; return; }
+			if (matchesKeyAction(data, "editNavDown")) { state.thinkingCursor = state.thinkingCursor === THINKING_LEVELS.length - 1 ? 0 : state.thinkingCursor + 1; return; }
 			return;
 		}
 		if (state.fieldMode === "skills") {
-			if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { state.fieldMode = null; return { nextScreen: "edit" }; }
-			if (matchesKey(data, "return")) { const selected = [...state.skillSelected]; state.draft.skills = selected.length > 0 ? selected : undefined; state.fieldMode = null; return { nextScreen: "edit" }; }
+			if (matchesKeyAction(data, "editDiscard")) { state.fieldMode = null; return { nextScreen: "edit" }; }
+			if (matchesKeyAction(data, "editFieldSelect")) { const selected = [...state.skillSelected]; state.draft.skills = selected.length > 0 ? selected : undefined; state.fieldMode = null; return { nextScreen: "edit" }; }
 			if (data === " ") { const skill = state.filteredSkills[state.skillCursor]; if (skill) { if (state.skillSelected.has(skill.name)) state.skillSelected.delete(skill.name); else state.skillSelected.add(skill.name); } return; }
-			if (matchesKey(data, "up")) { if (state.filteredSkills.length > 0) state.skillCursor = state.skillCursor === 0 ? state.filteredSkills.length - 1 : state.skillCursor - 1; return; }
-			if (matchesKey(data, "down")) { if (state.filteredSkills.length > 0) state.skillCursor = state.skillCursor === state.filteredSkills.length - 1 ? 0 : state.skillCursor + 1; return; }
-			if (matchesKey(data, "backspace")) { if (state.skillSearchQuery.length > 0) state.skillSearchQuery = state.skillSearchQuery.slice(0, -1); }
+			if (matchesKeyAction(data, "editNavUp")) { if (state.filteredSkills.length > 0) state.skillCursor = state.skillCursor === 0 ? state.filteredSkills.length - 1 : state.skillCursor - 1; return; }
+			if (matchesKeyAction(data, "editNavDown")) { if (state.filteredSkills.length > 0) state.skillCursor = state.skillCursor === state.filteredSkills.length - 1 ? 0 : state.skillCursor + 1; return; }
+			if (matchesKeyAction(data, "generalSearchBackspace")) { if (state.skillSearchQuery.length > 0) state.skillSearchQuery = state.skillSearchQuery.slice(0, -1); }
 			else if (data.length === 1 && data.charCodeAt(0) >= 32) state.skillSearchQuery += data;
 			const query = state.skillSearchQuery.toLowerCase();
 			state.filteredSkills = query ? skills.filter((s) => s.name.toLowerCase().includes(query) || (s.description?.toLowerCase().includes(query) ?? false)) : [...skills];
 			state.skillCursor = Math.min(state.skillCursor, Math.max(0, state.filteredSkills.length - 1));
 			return;
 		}
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { state.fieldMode = null; return { nextScreen: "edit" }; }
-		if (matchesKey(data, "return")) { const field = FIELD_ORDER[state.fieldIndex]!; applyFieldValue(field, state, state.fieldEditor.buffer); state.fieldMode = null; return { nextScreen: "edit" }; }
-		if (matchesKey(data, "tab")) return;
+		if (matchesKeyAction(data, "editDiscard")) { state.fieldMode = null; return { nextScreen: "edit" }; }
+		if (matchesKeyAction(data, "editFieldSelect")) { const field = FIELD_ORDER[state.fieldIndex]!; applyFieldValue(field, state, state.fieldEditor.buffer); state.fieldMode = null; return { nextScreen: "edit" }; }
+		if (data === "tab") return;
 		const innerW = width - 2; const labelWidth = 12; const textWidth = Math.max(10, innerW - labelWidth - 6);
 		const nextState = handleEditorInput(state.fieldEditor, data, textWidth); if (nextState) state.fieldEditor = nextState; return;
 	}
 	if (screen === "edit-prompt") {
-		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { state.draft.systemPrompt = state.promptEditor.buffer; return { nextScreen: "edit" }; }
+		if (matchesKeyAction(data, "editDiscard")) { state.draft.systemPrompt = state.promptEditor.buffer; return { nextScreen: "edit" }; }
 		const textWidth = Math.max(10, width - 4);
-		if (matchesKey(data, "pageup") || matchesKey(data, "shift+up")) { const wrapped = wrapText(state.promptEditor.buffer, textWidth); const cursorPos = getCursorDisplayPos(state.promptEditor.cursor, wrapped.starts); const targetLine = Math.max(0, cursorPos.line - PROMPT_VIEWPORT_HEIGHT); const targetCol = Math.min(cursorPos.col, wrapped.lines[targetLine]?.length ?? 0); state.promptEditor = { ...state.promptEditor, cursor: wrapped.starts[targetLine] + targetCol }; return; }
-		if (matchesKey(data, "pagedown") || matchesKey(data, "shift+down")) { const wrapped = wrapText(state.promptEditor.buffer, textWidth); const cursorPos = getCursorDisplayPos(state.promptEditor.cursor, wrapped.starts); const targetLine = Math.min(wrapped.lines.length - 1, cursorPos.line + PROMPT_VIEWPORT_HEIGHT); const targetCol = Math.min(cursorPos.col, wrapped.lines[targetLine]?.length ?? 0); state.promptEditor = { ...state.promptEditor, cursor: wrapped.starts[targetLine] + targetCol }; return; }
+		if (matchesKeyAction(data, "detailPageUp")) { const wrapped = wrapText(state.promptEditor.buffer, textWidth); const cursorPos = getCursorDisplayPos(state.promptEditor.cursor, wrapped.starts); const targetLine = Math.max(0, cursorPos.line - PROMPT_VIEWPORT_HEIGHT); const targetCol = Math.min(cursorPos.col, wrapped.lines[targetLine]?.length ?? 0); state.promptEditor = { ...state.promptEditor, cursor: wrapped.starts[targetLine] + targetCol }; return; }
+		if (matchesKeyAction(data, "detailPageDown")) { const wrapped = wrapText(state.promptEditor.buffer, textWidth); const cursorPos = getCursorDisplayPos(state.promptEditor.cursor, wrapped.starts); const targetLine = Math.min(wrapped.lines.length - 1, cursorPos.line + PROMPT_VIEWPORT_HEIGHT); const targetCol = Math.min(cursorPos.col, wrapped.lines[targetLine]?.length ?? 0); state.promptEditor = { ...state.promptEditor, cursor: wrapped.starts[targetLine] + targetCol }; return; }
 		const nextState = handleEditorInput(state.promptEditor, data, textWidth, { multiLine: true }); if (nextState) state.promptEditor = nextState; return;
 	}
 	return;

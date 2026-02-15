@@ -1,4 +1,5 @@
 import { matchesKey } from "@mariozechner/pi-tui";
+import { matchesKeyAction } from "./keybindings.js";
 
 export interface TextEditorState {
 	buffer: string;
@@ -140,11 +141,11 @@ export function handleEditorInput(
 ): TextEditorState | null {
 	const multiLine = options?.multiLine === true;
 
-	if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
+	if (matchesKeyAction(data, "editorCancel")) {
 		return null;
 	}
 
-	if (matchesKey(data, "return")) {
+	if (matchesKeyAction(data, "editorNewLine")) {
 		if (!multiLine) return null;
 		const buffer = state.buffer.slice(0, state.cursor) + "\n" + state.buffer.slice(state.cursor);
 		return { ...state, buffer, cursor: state.cursor + 1 };
@@ -153,25 +154,25 @@ export function handleEditorInput(
 	const { lines: wrapped, starts } = wrapText(state.buffer, textWidth);
 	const cursorPos = getCursorDisplayPos(state.cursor, starts);
 
-	if (matchesKey(data, "alt+left") || matchesKey(data, "ctrl+left")) {
+	if (matchesKeyAction(data, "editorWordLeft")) {
 		return { ...state, cursor: wordBackward(state.buffer, state.cursor) };
 	}
 
-	if (matchesKey(data, "alt+right") || matchesKey(data, "ctrl+right")) {
+	if (matchesKeyAction(data, "editorWordRight")) {
 		return { ...state, cursor: wordForward(state.buffer, state.cursor) };
 	}
 
-	if (matchesKey(data, "left")) {
+	if (matchesKeyAction(data, "editorNavLeft")) {
 		if (state.cursor > 0) return { ...state, cursor: state.cursor - 1 };
 		return state;
 	}
 
-	if (matchesKey(data, "right")) {
+	if (matchesKeyAction(data, "editorNavRight")) {
 		if (state.cursor < state.buffer.length) return { ...state, cursor: state.cursor + 1 };
 		return state;
 	}
 
-	if (matchesKey(data, "up")) {
+	if (matchesKeyAction(data, "editorNavUp")) {
 		if (cursorPos.line > 0) {
 			const targetLine = cursorPos.line - 1;
 			const targetCol = Math.min(cursorPos.col, wrapped[targetLine]?.length ?? 0);
@@ -180,7 +181,7 @@ export function handleEditorInput(
 		return state;
 	}
 
-	if (matchesKey(data, "down")) {
+	if (matchesKeyAction(data, "editorNavDown")) {
 		if (cursorPos.line < wrapped.length - 1) {
 			const targetLine = cursorPos.line + 1;
 			const targetCol = Math.min(cursorPos.col, wrapped[targetLine]?.length ?? 0);
@@ -189,30 +190,30 @@ export function handleEditorInput(
 		return state;
 	}
 
-	if (matchesKey(data, "home")) {
+	if (matchesKeyAction(data, "editorHome")) {
 		return { ...state, cursor: starts[cursorPos.line] };
 	}
 
-	if (matchesKey(data, "end")) {
+	if (matchesKeyAction(data, "editorEnd")) {
 		return { ...state, cursor: starts[cursorPos.line] + (wrapped[cursorPos.line]?.length ?? 0) };
 	}
 
-	if (matchesKey(data, "ctrl+home")) {
+	if (matchesKeyAction(data, "editorDocStart")) {
 		return { ...state, cursor: 0 };
 	}
 
-	if (matchesKey(data, "ctrl+end")) {
+	if (matchesKeyAction(data, "editorDocEnd")) {
 		return { ...state, cursor: state.buffer.length };
 	}
 
-	if (matchesKey(data, "alt+backspace")) {
+	if (matchesKeyAction(data, "editorDeleteWord")) {
 		const target = wordBackward(state.buffer, state.cursor);
 		if (target === state.cursor) return state;
 		const buffer = state.buffer.slice(0, target) + state.buffer.slice(state.cursor);
 		return { ...state, buffer, cursor: target };
 	}
 
-	if (matchesKey(data, "backspace")) {
+	if (matchesKeyAction(data, "editorBackspace")) {
 		if (state.cursor > 0) {
 			const buffer = state.buffer.slice(0, state.cursor - 1) + state.buffer.slice(state.cursor);
 			return { ...state, buffer, cursor: state.cursor - 1 };
@@ -220,7 +221,7 @@ export function handleEditorInput(
 		return state;
 	}
 
-	if (matchesKey(data, "delete")) {
+	if (matchesKeyAction(data, "editorDelete")) {
 		if (state.cursor < state.buffer.length) {
 			const buffer = state.buffer.slice(0, state.cursor) + state.buffer.slice(state.cursor + 1);
 			return { ...state, buffer };
